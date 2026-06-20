@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RobotTest - Handwriting & Behavioral Verification</title>
+    <style>
+        /* --- CORE CONFIGURATION & VARIABLES --- */
+        :root {
+            --color-bg: #f8fafc;
+            --color-surface: #ffffff;
+            --color-primary: #10b981;
+            --color-primary-hover: #059669;
+            --color-primary-light: #ecfdf5;
+            --color-text-main: #1f2937;
+            --color-text-muted: #6b7280;
+            --color-border: #e5e7eb;
+            --color-danger: #ef4444;
+            --color-warning: #f59e0b;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+
+        body {
+            background-color: var(--color-bg);
+            color: var(--color-text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* --- MAIN UI CONTAINER --- */
+        .verification-container {
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            width: 100%;
+            max-width: 440px;
+            padding: 32px;
+            border: 1px solid var(--color-border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* --- SCREEN VISIBILITY MANAGEMENT --- */
+        .screen { display: none; opacity: 0; transform: translateY(10px); transition: var(--transition); }
+        .screen.active { display: block; opacity: 1; transform: translateY(0); }
+
+        /* --- COMPONENTS --- */
+        .brand { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 24px; }
+        .logo-wrapper {
+            background: var(--color-primary-light); padding: 16px; border-radius: 50%;
+            margin-bottom: 16px; border: 2px solid rgba(16, 185, 129, 0.1);
+        }
+        .logo-wrapper svg { width: 42px; height: 42px; fill: none; stroke: var(--color-primary); stroke-width: 2; }
+        .title { font-size: 24px; font-weight: 700; color: var(--color-text-main); letter-spacing: -0.5px; }
+        .subtitle { font-size: 14px; color: var(--color-text-muted); margin-top: 4px; }
+
+        /* --- BUTTONS --- */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; width: 100%;
+            padding: 14px 24px; background-color: var(--color-primary); color: white;
+            border: none; border-radius: var(--radius-md); font-size: 15px; font-weight: 600;
+            cursor: pointer; transition: var(--transition); box-shadow: var(--shadow-sm); gap: 8px;
+        }
+        .btn:hover { background-color: var(--color-primary-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+        .btn-outline { background-color: transparent; border: 2px solid var(--color-border); color: var(--color-text-main); box-shadow: none; margin-top: 12px; }
+        .btn-outline:hover { background-color: var(--color-bg); border-color: var(--color-text-muted); }
+        .btn-small { padding: 8px 16px; font-size: 13px; background-color: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: var(--radius-md); cursor: pointer; transition: var(--transition); }
+        .btn-small:hover { background-color: var(--color-bg); }
+
+        /* --- HANDWRITING CANVAS --- */
+        .challenge-header { text-align: center; margin-bottom: 16px; }
+        .challenge-instruction { font-size: 18px; font-weight: 700; color: var(--color-primary); margin: 8px 0; }
+        
+        .canvas-container {
+            width: 100%; aspect-ratio: 4/3; background: #fff;
+            border: 2px dashed var(--color-border); border-radius: var(--radius-md);
+            position: relative; overflow: hidden; margin-bottom: 16px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+        canvas {
+            width: 100%; height: 100%; display: block;
+            touch-action: none; /* Cegah scroll saat menggambar di mobile */
+            cursor: crosshair;
+        }
+        .canvas-toolbar { display: flex; justify-content: space-between; margin-bottom: 24px; }
+
+        /* --- STATUS SCREENS --- */
+        .status-container { text-align: center; padding: 16px 0; }
+        .status-icon { width: 72px; height: 72px; margin: 0 auto 20px; border-radius: 50%; display: flex; justify-content: center; align-items: center; }
+        .status-icon.success { background: var(--color-primary-light); color: var(--color-primary); animation: pulse-success 2s infinite; }
+        .status-icon.suspicious { background: #fef2f2; color: var(--color-danger); animation: pulse-danger 2s infinite; }
+        .status-icon svg { width: 36px; height: 36px; }
+        .status-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+        .status-desc { font-size: 14px; color: var(--color-text-muted); margin-bottom: 24px; line-height: 1.5; }
+
+        /* --- TOKEN DISPLAY --- */
+        .token-box {
+            background: var(--color-bg); border: 1px dashed var(--color-border);
+            border-radius: var(--radius-md); padding: 14px; font-family: monospace;
+            font-size: 13px; color: var(--color-text-main); word-break: break-all;
+            margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .copy-btn { background: transparent; border: none; cursor: pointer; color: var(--color-text-muted); padding: 4px; border-radius: 4px; transition: var(--transition); }
+        .copy-btn:hover { color: var(--color-primary); background: var(--color-primary-light); }
+
+        /* --- LOADER --- */
+        .loader {
+            display: none; width: 24px; height: 24px; border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite;
+        }
+        .loading .loader { display: block; }
+        .loading .btn-text { display: none; }
+
+        /* --- DEBUG DASHBOARD --- */
+        .debug-toggle {
+            position: fixed; bottom: 24px; left: 24px; background: var(--color-text-main);
+            color: white; border: none; padding: 10px 16px; border-radius: 30px;
+            font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; z-index: 1000;
+        }
+        .debug-dashboard {
+            position: fixed; bottom: 80px; left: 24px; width: 320px;
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(8px);
+            color: #e2e8f0; border-radius: var(--radius-md); padding: 20px;
+            font-family: monospace; font-size: 11px; z-index: 999;
+            opacity: 0; pointer-events: none; transform: translateY(20px); transition: var(--transition);
+        }
+        .debug-dashboard.active { opacity: 1; pointer-events: auto; transform: translateY(0); }
+        .debug-title { font-weight: bold; color: var(--color-primary); margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px; }
+        .debug-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .debug-value { color: #38bdf8; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse-success { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+        @keyframes pulse-danger { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+
+        @media (max-width: 480px) {
+            .verification-container { border-radius: 0; border: none; box-shadow: none; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
+            body { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="verification-container" id="appCard">
+        
+        <div class="screen active" id="screenWelcome">
+            <div class="brand">
+                <div class="logo-wrapper">
+                    <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
+                </div>
+                <h1 class="title">RobotTest</h1>
+                <p class="subtitle">Human Presence & Behavioral Verification</p>
+            </div>
+            <button class="btn" id="btnStart">
+                <span class="btn-text">Start Verification</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+        </div>
+
+        <div class="screen" id="screenChallenge">
+            <div class="challenge-header">
+                <p class="subtitle" id="challengeLevelText">Level 1: Kinematik Analisis</p>
+                <h2 class="challenge-instruction" id="instructionText">Tulis angka 8</h2>
+            </div>
+            
+            <div class="canvas-container">
+                <canvas id="drawingCanvas"></canvas>
+            </div>
+            
+            <div class="canvas-toolbar">
+                <button class="btn-small" id="btnClearCanvas">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    Clear Board
+                </button>
+                <span style="font-size: 12px; color: var(--color-text-muted); align-self: center;">Draw organically</span>
+            </div>
+
+            <button class="btn" id="btnVerify">
+                <span class="btn-text">Verify Signature</span>
+                <div class="loader"></div>
+            </button>
+        </div>
+
+        <div class="screen" id="screenVerified">
+            <div class="status-container">
+                <div class="status-icon success">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </div>
+                <h2 class="status-title" style="color: var(--color-primary);">Terverifikasi Manusia</h2>
+                <p class="status-desc">Dinamika penulisan (stroke, tekanan, latensi) menunjukkan interaksi organik yang valid.</p>
+                
+                <div class="token-box">
+                    <span id="tokenText">...</span>
+                    <button class="copy-btn" id="btnCopyToken" title="Copy Token">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>
+                </div>
+                <button class="btn btn-outline" id="btnResetVerified">Selesai</button>
+            </div>
+        </div>
+
+        <div class="screen" id="screenSuspicious">
+            <div class="status-container">
+                <div class="status-icon suspicious">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                </div>
+                <h2 class="status-title" style="color: var(--color-danger);">Aktivitas Mencurigakan</h2>
+                <p class="status-desc" id="suspiciousReason">Pola gerakan terdeteksi tidak wajar atau diotomatisasi (Bot / Skrip terdeteksi).</p>
+                <button class="btn btn-outline" id="btnRetryChallenge">Coba Lagi Sesi Baru</button>
+            </div>
+        </div>
+
+    </div>
+
+    <button class="debug-toggle" id="btnToggleDebug">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+        Telemetry Log
+    </button>
+    <div class="debug-dashboard" id="debugDashboard">
+        <div class="debug-title">BIOMETRIC ENGINE v3</div>
+        <div class="debug-row"><span>Human Score:</span><span class="debug-value" id="dbHuman">0.00</span></div>
+        <div class="debug-row"><span>Writing Score:</span><span class="debug-value" id="dbWrite">0.00</span></div>
+        <div class="debug-row"><span>Behavior Score:</span><span class="debug-value" id="dbBehav">0.00</span></div>
+        <div class="debug-row"><span>Timing Score:</span><span class="debug-value" id="dbTime">0.00</span></div>
+        <div style="border-top: 1px dashed rgba(255,255,255,0.2); margin: 8px 0;"></div>
+        <div class="debug-row"><span>Total Strokes:</span><span class="debug-value" id="dbStrokes">0</span></div>
+        <div class="debug-row"><span>Total Points:</span><span class="debug-value" id="dbPoints">0</span></div>
+        <div class="debug-row"><span>Speed Variance:</span><span class="debug-value" id="dbVar">0.00</span></div>
+        <div class="debug-row"><span>Draw Duration:</span><span class="debug-value" id="dbDur">0ms</span></div>
+        <div class="debug-row"><span>Pre-Draw Wait:</span><span class="debug-value" id="dbWait">0ms</span></div>
+        <div class="debug-row"><span>State:</span><span class="debug-value" id="dbState">WELCOME</span></div>
+    </div>
+
+    <script>
+        /**
+         * RobotTest v3 Core
+         * Sistem Analisis Biometrik Tulisan Tangan & Perilaku.
+         */
+
+        // =====================================
+        // 1. BEHAVIORAL ENGINE
+        // Merekam aktivitas global (mouse global, touch, waktu reaksi)
+        // =====================================
+        class BehavioralEngine {
+            constructor() {
+                this.mouseMoves = 0;
+                this.touchMoves = 0;
+                this.clicks = 0;
+                this.sessionStart = Date.now();
+                this.bindEvents();
+            }
+
+            bindEvents() {
+                window.addEventListener('mousemove', () => this.mouseMoves++);
+                window.addEventListener('touchmove', () => this.touchMoves++, {passive: true});
+                window.addEventListener('click', () => this.clicks++);
+                window.addEventListener('touchstart', () => this.clicks++, {passive: true});
+            }
+
+            getBehaviorScore() {
+                let score = 0.5; // Base
+                if (this.mouseMoves > 10 || this.touchMoves > 5) score += 0.3;
+                if (this.clicks > 1) score += 0.2;
+                return Math.min(1.0, score);
+            }
+        }
+
+        // =====================================
+        // 2. HANDWRITING ENGINE (Stroke Recording)
+        // Merekam dan menganalisis coretan pada kanvas
+        // =====================================
+        class HandwritingEngine {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.isDrawing = false;
+                
+                // Data Metrics
+                this.strokes = [];       // Array of strokes. Stroke = array of points {x,y,t}
+                this.currentStroke = [];
+                this.drawStartTime = 0;
+                this.lastPointTime = 0;
+                
+                this.resizeCanvas();
+                this.bindEvents();
+            }
+
+            resizeCanvas() {
+                // Menyamakan resolusi internal canvas dengan display size CSS
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+                this.ctx.lineCap = 'round';
+                this.ctx.lineJoin = 'round';
+                this.ctx.lineWidth = 4;
+                this.ctx.strokeStyle = '#1f2937';
+            }
+
+            clear() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.strokes = [];
+                this.currentStroke = [];
+                this.drawStartTime = 0;
+            }
+
+            bindEvents() {
+                // Mouse Events
+                this.canvas.addEventListener('mousedown', (e) => this.startDraw(e.offsetX, e.offsetY));
+                this.canvas.addEventListener('mousemove', (e) => this.draw(e.offsetX, e.offsetY));
+                this.canvas.addEventListener('mouseup', () => this.endDraw());
+                this.canvas.addEventListener('mouseout', () => this.endDraw());
+
+                // Touch Events (Konversi ke koordinat canvas)
+                const getTouchPos = (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    return {
+                        x: e.touches[0].clientX - rect.left,
+                        y: e.touches[0].clientY - rect.top
+                    };
+                };
+
+                this.canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault(); // Cegah scroll layar
+                    const pos = getTouchPos(e);
+                    this.startDraw(pos.x, pos.y);
+                }, { passive: false });
+
+                this.canvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    const pos = getTouchPos(e);
+                    this.draw(pos.x, pos.y);
+                }, { passive: false });
+
+                this.canvas.addEventListener('touchend', () => this.endDraw());
+            }
+
+            startDraw(x, y) {
+                this.isDrawing = true;
+                const time = Date.now();
+                if (this.strokes.length === 0) this.drawStartTime = time;
+                
+                this.currentStroke = [{x, y, time}];
+                this.lastPointTime = time;
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(x, y);
+            }
+
+            draw(x, y) {
+                if (!this.isDrawing) return;
+                
+                const time = Date.now();
+                // Cegah recording titik berlebihan pada posisi yg sama
+                if (time - this.lastPointTime > 10) { 
+                    this.currentStroke.push({x, y, time});
+                    this.lastPointTime = time;
+                }
+
+                this.ctx.lineTo(x, y);
+                this.ctx.stroke();
+            }
+
+            endDraw() {
+                if (!this.isDrawing) return;
+                this.isDrawing = false;
+                if (this.currentStroke.length > 0) {
+                    this.strokes.push(this.currentStroke);
+                }
+                this.currentStroke = [];
+            }
+
+            // --- KINEMATIC ANALYSIS ---
+            analyze() {
+                let totalPoints = 0;
+                let speeds = [];
+                let totalDrawDuration = 0;
+
+                if (this.strokes.length === 0) return { score: 0, points: 0, variance: 0, duration: 0 };
+
+                // Waktu dari stroke pertama sampai stroke terakhir
+                const firstTime = this.strokes[0][0].time;
+                const lastStroke = this.strokes[this.strokes.length - 1];
+                const lastTime = lastStroke[lastStroke.length - 1].time;
+                totalDrawDuration = lastTime - firstTime;
+
+                this.strokes.forEach(stroke => {
+                    totalPoints += stroke.length;
+                    for (let i = 1; i < stroke.length; i++) {
+                        const p1 = stroke[i-1];
+                        const p2 = stroke[i];
+                        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                        const timeDiff = p2.time - p1.time;
+                        
+                        if (timeDiff > 0) {
+                            speeds.push(dist / timeDiff);
+                        }
+                    }
+                });
+
+                // Analisis Variasi (Naturalness)
+                // Robot sering kali menulis dengan kecepatan stabil. Manusia memiliki percepatan & perlambatan.
+                let variance = 0;
+                if (speeds.length > 5) {
+                    const meanSpeed = speeds.reduce((a,b) => a+b, 0) / speeds.length;
+                    variance = speeds.reduce((a,b) => a + Math.pow(b - meanSpeed, 2), 0) / speeds.length;
+                }
+
+                // Kalkulasi Score Tulisan
+                let wScore = 0;
+                
+                // Terlalu sedikit titik = klik bot biasa
+                if (totalPoints > 15) wScore += 0.4; 
+                else if (totalPoints > 5) wScore += 0.1;
+
+                // Waktu menggambar wajar (manusia butuh >200ms, bot bisa <50ms)
+                if (totalDrawDuration > 300) wScore += 0.3;
+
+                // Variasi wajar
+                if (variance > 0.05) wScore += 0.3; // Tidak konstan
+
+                return {
+                    score: Math.min(1.0, wScore),
+                    points: totalPoints,
+                    strokesCount: this.strokes.length,
+                    variance: variance,
+                    duration: totalDrawDuration
+                };
+            }
+        }
+
+        // =====================================
+        // 3. SECURITY & SCORING ENGINE
+        // =====================================
+        class SecurityEngine {
+            constructor(behavior, handwriting) {
+                this.be = behavior;
+                this.hw = handwriting;
+                this.challengeStartTime = 0;
+            }
+
+            markChallengeStart() {
+                this.challengeStartTime = Date.now();
+            }
+
+            evaluate() {
+                const hwData = this.hw.analyze();
+                const behavScore = this.be.getBehaviorScore();
+                
+                // Timing Analysis (Waktu sebelum mulai menggambar)
+                let tScore = 0;
+                let preDrawWait = 0;
+                
+                if (this.hw.strokes.length > 0) {
+                    preDrawWait = this.hw.strokes[0][0].time - this.challengeStartTime;
+                    // Manusia butuh waktu baca instruksi (idealnya > 400ms)
+                    if (preDrawWait > 400 && preDrawWait < 10000) tScore = 1.0;
+                    else if (preDrawWait >= 100 && preDrawWait <= 400) tScore = 0.5;
+                    else tScore = 0.0; // Terlalu cepat (Bot) atau terlalu lama (AFK)
+                }
+
+                // Penggabungan Final Human Score (Bobot: 50% Tulisan, 30% Timing, 20% Behavior)
+                const writingScore = hwData.score;
+                const finalScore = (writingScore * 0.5) + (tScore * 0.3) + (behavScore * 0.2);
+
+                return {
+                    humanScore: Math.max(0, Math.min(1, finalScore)),
+                    writingScore: writingScore,
+                    behaviorScore: behavScore,
+                    timingScore: tScore,
+                    metrics: { ...hwData, preDrawWait }
+                };
+            }
+
+            generateSecureToken() {
+                const timeHex = Date.now().toString(16);
+                const array = new Uint8Array(6);
+                window.crypto.getRandomValues(array);
+                const entropy = Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+                return `RTH-${timeHex.toUpperCase()}-${entropy.toUpperCase()}`;
+            }
+        }
+
+        // =====================================
+        // 4. MAIN APPLICATION CONTROLLER
+        // =====================================
+        class RobotTestApp {
+            constructor() {
+                this.behavior = new BehavioralEngine();
+                this.handwriting = new HandwritingEngine('drawingCanvas');
+                this.security = new SecurityEngine(this.behavior, this.handwriting);
+                
+                this.level = 1;
+                this.state = 'WELCOME';
+                this.challenges = [
+                    "Tulis angka 8", "Tulis huruf R", "Gambar lingkaran penuh", 
+                    "Tulis karakter '@'", "Gambar sebuah segitiga", "Tulis angka 5",
+                    "Tulis huruf kapital W", "Gambar simbol plus (+)"
+                ];
+
+                this.bindUI();
+                this.startDebugLoop();
+            }
+
+            bindUI() {
+                document.getElementById('btnStart').addEventListener('click', () => this.startVerification());
+                document.getElementById('btnClearCanvas').addEventListener('click', () => this.handwriting.clear());
+                document.getElementById('btnVerify').addEventListener('click', () => this.processVerification());
+                document.getElementById('btnRetryChallenge').addEventListener('click', () => this.resetApp());
+                document.getElementById('btnResetVerified').addEventListener('click', () => this.resetApp());
+                
+                // Debug Toggle
+                document.getElementById('btnToggleDebug').addEventListener('click', () => {
+                    document.getElementById('debugDashboard').classList.toggle('active');
+                });
+
+                // Copy Token
+                document.getElementById('btnCopyToken').addEventListener('click', (e) => {
+                    navigator.clipboard.writeText(document.getElementById('tokenText').innerText);
+                    const btn = e.currentTarget;
+                    const oldHtml = btn.innerHTML;
+                    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                    setTimeout(() => btn.innerHTML = oldHtml, 1500);
+                });
+
+                // Handle Resize Canvas for responsive
+                window.addEventListener('resize', () => {
+                    if(this.state === 'CHALLENGE') this.handwriting.resizeCanvas();
+                });
+            }
+
+            switchScreen(screenId) {
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                document.getElementById(screenId).classList.add('active');
+            }
+
+            startVerification() {
+                this.state = 'CHALLENGE';
+                this.switchScreen('screenChallenge');
+                this.generateNewChallenge();
+                this.security.markChallengeStart();
+            }
+
+            generateNewChallenge() {
+                this.handwriting.clear();
+                this.handwriting.resizeCanvas(); // Ensure proper size
+                
+                const randomTask = this.challenges[Math.floor(Math.random() * this.challenges.length)];
+                document.getElementById('instructionText').innerText = randomTask;
+                document.getElementById('challengeLevelText').innerText = `Level ${this.level}: Analisis Kinematik`;
+            }
+
+            processVerification() {
+                // UI Loading state
+                const btn = document.getElementById('btnVerify');
+                btn.classList.add('loading');
+                btn.disabled = true;
+
+                // Simulasi delay pemrosesan server buatan
+                setTimeout(() => {
+                    btn.classList.remove('loading');
+                    btn.disabled = false;
+                    
+                    const evalResult = this.security.evaluate();
+                    
+                    if (evalResult.humanScore >= 0.70) {
+                        this.passVerification();
+                    } else if (evalResult.humanScore >= 0.40 && this.level === 1) {
+                        // Adaptive: Minta pengguna mencoba lagi (Mungkin tulisannya jelek/terlalu cepat)
+                        this.level = 2;
+                        alert("Polanya kurang jelas. Silakan ikuti tantangan kedua ini dengan lebih perlahan.");
+                        this.generateNewChallenge();
+                        this.security.markChallengeStart();
+                    } else {
+                        // Terdeteksi Bot / Score rendah berulang
+                        this.failVerification();
+                    }
+                }, 1200);
+            }
+
+            passVerification() {
+                this.state = 'VERIFIED';
+                this.switchScreen('screenVerified');
+                document.getElementById('tokenText').innerText = this.security.generateSecureToken();
+            }
+
+            failVerification() {
+                this.state = 'SUSPICIOUS';
+                this.switchScreen('screenSuspicious');
+                if(this.handwriting.strokes.length === 0) {
+                    document.getElementById('suspiciousReason').innerText = "Tidak ada input tulisan yang terdeteksi.";
+                } else {
+                    document.getElementById('suspiciousReason').innerText = "Anomali kinematik terdeteksi. Pola eksekusi menyerupai automasi skrip.";
+                }
+            }
+
+            resetApp() {
+                this.state = 'WELCOME';
+                this.level = 1;
+                this.behavior = new BehavioralEngine(); // reset
+                this.handwriting.clear();
+                this.switchScreen('screenWelcome');
+            }
+
+            startDebugLoop() {
+                setInterval(() => {
+                    const res = this.security.evaluate();
+                    document.getElementById('dbHuman').innerText = res.humanScore.toFixed(2);
+                    document.getElementById('dbWrite').innerText = res.writingScore.toFixed(2);
+                    document.getElementById('dbBehav').innerText = res.behaviorScore.toFixed(2);
+                    document.getElementById('dbTime').innerText = res.timingScore.toFixed(2);
+                    
+                    document.getElementById('dbStrokes').innerText = res.metrics.strokesCount;
+                    document.getElementById('dbPoints').innerText = res.metrics.points;
+                    document.getElementById('dbVar').innerText = res.metrics.variance.toFixed(2);
+                    document.getElementById('dbDur').innerText = res.metrics.duration + 'ms';
+                    document.getElementById('dbWait').innerText = res.metrics.preDrawWait + 'ms';
+                    document.getElementById('dbState').innerText = this.state;
+
+                    // Color indicator for Human Score
+                    const hsEl = document.getElementById('dbHuman');
+                    hsEl.style.color = res.humanScore >= 0.7 ? '#10b981' : (res.humanScore < 0.4 ? '#ef4444' : '#f59e0b');
+                }, 200);
+            }
+        }
+
+        // Init App on load
+        window.addEventListener('DOMContentLoaded', () => {
+            new RobotTestApp();
+        });
+    </script>
+</body>
+</html>
